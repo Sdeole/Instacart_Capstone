@@ -1,0 +1,320 @@
+---
+title: "Machine Learning"
+author: "Sonali Deole"
+date: "9/27/2020"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Here is the list of libraries used for this Project
+```{r}
+#Here is the list of libraries used for this Project
+
+library(data.table) # fast file reading
+library(dplyr)
+library(ggplot2)
+library(knitr)       # web widget
+library(DT)
+library(tidyr)
+library(tidyverse)  # data manipulation
+library(randomForest)
+library(ROCR)       # rocr analysis
+library(repr)
+library(caret)      # rocr analysis
+library(treemap)    # tree visualization
+library(kableExtra) # nice table html formating 
+library(gridExtra)  # arranging ggplot in grid
+#library(corrgram)   # correlation graphics
+```
+
+
+##MACHINE LEARNING: 
+Predictive Analysis
+
+Naive Prediction, Simple Naive Prediction and Logististic regression  was selected for the analysis. 
+Naive Bayes is a simple probabilistic classifier based on the assumption that features of a measurement are independent of each other. 
+
+The objective is to predict what product will the customer purchase in the next basket.
+It requires probability estimation of each product that had been purchased before.
+This is a classification problem, as well as a regression of probability of repurchases.
+
+For this analysis, we shall use two Naive models (handcrafted baseline) and one Machine Learning Logistic regression will be used for Machine Learning approach for its speed and simplicity; to demonstrate the feasibility to producing a better outcome then baseline.
+
+
+##Train/Test Dataset Splitting
+Instacart did not provide us test order detail, therefore we shall use the train users for both trainng and testing. We achieve this by splitting the train users and its related orders and products into train dataset and train dataset, at 70%/30% split (by number of users). That means our train/test dataset will contain approximately 91846 / 39,363 users.
+
+```{r}
+# update this variable for changing split ratio
+train_proportion = 0.7
+# build list of all users ID
+tmp = orders %>% filter(eval_set=='train') %>% distinct(user_id)
+# 70/30 split
+set.seed(12345)
+train.rows = sample( 1:nrow(tmp), train_proportion * nrow(tmp) )
+train.users = tmp[train.rows,]  # select training rows, list of train users
+test.users  = tmp[-train.rows,] # select testing rows, list of test users
+cat("Total Rows in Training Users: ", length(train.users),
+    "\nTotal Rows in Testing Users: ", length(test.users),
+    "\nTrain/Test Split % : ", 100*length(train.users)/(length(test.users)+length(train.users)),
+    " / ", 100*length(test.users)/(length(test.users)+length(train.users)))
+
+```
+
+
+
+
+##Training Data Construct
+The data frame used for training should contain the below columns and features:
+
+key
+
+This is unique pair of user_id and product_id from orders
+The keys should be constructed from all user_id-product_id pair that includes all prior and test/train rows
+`actual
+
+This is the response variable with value of 1 or 0 for each unique key
+The value is 1 when the product is purchased in the last order (train or test set of orders)
+The value is 0 when the product is not purchased in the train or test set, but was bought in prior set
+other features
+
+From exploratory discovery, features that could contribute to the prediction should be populated into the construct. Feature engineering will happen in the later stage.
+
+Let’s proceed to create the basic training construct. This won’t be used for prediction until feature engineering is completed in later stage.
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+# list of products in the final order, this make up the label
+# list of products in the final order, this make up the label
+construct1 = orders %>%    
+  filter(user_id %in% train.users, eval_set=='train') %>% 
+  left_join(order_products_train) %>%
+  distinct(user_id, product_id) %>%
+  mutate(actual=1)  #training label
+# list of products each users had bought before in prior orders
+construct2 = orders %>%   
+  filter(user_id %in% train.users, eval_set=='prior') %>% 
+  left_join(order_products_prior) %>%
+  distinct(user_id,product_id)
+# Training Construct
+train.construct = left_join(construct2,construct1) %>%
+  mutate(key=paste(user_id,product_id,sep="-")) %>%  # key
+  select(key, user_id, product_id, actual) %>%
+  arrange(user_id, product_id) %>%
+  replace_na(list(actual = 0)) # proudcts not in last order, but exist in prior order
+#  drop_na # remove proudcts not in historical but appear in last order
+rm(list=c('construct1','construct2'))
+head(train.construct,5)
+```
+
+
+##Testing Data Construct
+Similar approach to training data construct, here we frame the testing data for evaluate our model built with training data.
+
+
+```{r}
+# list of products in the final order, this make up the label
+construct1 = orders %>%    
+  filter(user_id %in% test.users, eval_set=='train') %>% 
+  left_join(order_products_train) %>%
+  distinct(user_id, product_id) %>%
+  mutate(actual=1)  #training label
+
+# list of products each users had bought before in prior orders
+construct2 = orders %>%   
+  filter(user_id %in% test.users, eval_set=='prior') %>% 
+  left_join(order_products_prior) %>%
+  distinct(user_id,product_id)
+
+# Training Construct
+test.construct = left_join(construct2,construct1) %>%
+  mutate(key=paste(user_id,product_id,sep="-")) %>%  # key
+  select(key, user_id, product_id, actual) %>%
+  arrange(user_id, product_id) %>%
+  replace_na(list(actual = 0)) # products not in last order, but exist in prior order
+#  drop_na # remove products not in historical but appear in last order
+
+rm(list=c('construct1','construct2'))
+head(test.construct,5)
+```
+
+
+
+##Model Evaluation & Optimization
+Instacart has close to 50k products in their catalogue. As the maximum number of items ordered by a user is just a fraction of the 50k available product. This means by simply predicting nothing is purchased in the next basket, we would yeild close to 100% accuracy.
+
+Due to the highly imbalance dataset, Instacart require F1 Score as the competition scoring, instead of accuracy.
+
+To evaluate the performance of the model, we had created a custom function to build a confusion matrix and derive other binary classification metrics.
+
+
+```{r}
+## Custom Function For Binary Class Performance Evaluation
+binclass_eval = function (actual, predict) {
+  cm = table(as.integer(actual), as.integer(predict), dnn=c('Actual','Predicted'))
+  ac = (cm['1','1']+cm['0','0'])/(cm['0','1'] + cm['1','0'] + cm['1','1'] + cm['0','0'])
+  pr = cm['1','1']/(cm['0','1'] + cm['1','1'])
+  rc = cm['1','1']/(cm['1','0'] + cm['1','1'])
+  fs = 2* pr*rc/(pr+rc)
+  list(cm=cm, recall=rc, precision=pr, fscore=fs, accuracy=ac)
+}
+
+```
+
+
+
+If the prediction is based on probability, we shall build a function to discover cutoff that optimize various performance metrics.
+```{r}
+### Cutoff Threshold Optimization
+optimize_cutoff = function (actual, probability) {
+  rocr.pred = prediction(predictions = probability, labels = actual)
+  rocr.metrics = data.frame(
+      cutoff   = rocr.pred@cutoffs[[1]],
+      accuracy = (rocr.pred@tp[[1]] + rocr.pred@tn[[1]]) / 
+                   (rocr.pred@tp[[1]] + rocr.pred@tn[[1]] + rocr.pred@fp[[1]] + rocr.pred@fn[[1]]),
+      tpr = rocr.pred@tp[[1]] / (rocr.pred@tp[[1]] + rocr.pred@fn[[1]]),
+      fpr = rocr.pred@fp[[1]] / (rocr.pred@fp[[1]] + rocr.pred@tn[[1]]),
+      ppv = rocr.pred@tp[[1]] / (rocr.pred@tp[[1]] + rocr.pred@fp[[1]])
+  )
+  rocr.metrics$fscore = 2 * (rocr.metrics$tpr * rocr.metrics$ppv) / (rocr.metrics$tpr + rocr.metrics$ppv)
+  rocr.metrics$tpr_fpr = rocr.metrics$tpr / rocr.metrics$fpr
+  
+  ## Discovery the optimal threshold for various metrics
+  rocr.best = rbind(
+    best.accuracy = c(max = max(rocr.metrics$accuracy, na.rm = TRUE), cutoff=rocr.metrics$cutoff[which.max(rocr.metrics$accuracy)]),
+    best.ppv = c(max = max(rocr.metrics$ppv, na.rm = TRUE), cutoff = rocr.metrics$cutoff[which.max(rocr.metrics$ppv)]),
+    best.recall = c(max = max(rocr.metrics$tpr, na.rm = TRUE), cutoff = rocr.metrics$cutoff[which.max(rocr.metrics$tpr)]),
+    best.fscore = c(max = max(rocr.metrics$fscore, na.rm = TRUE), cutoff = rocr.metrics$cutoff[which.max(rocr.metrics$fscore)]),
+    best.tpr_fpr = c(max = max(rocr.metrics$tpr_fpr, na.rm = TRUE), cutoff = rocr.metrics$cutoff[which.max(rocr.metrics$tpr_fpr)])
+  )
+  
+  list(metrics = rocr.metrics, best = rocr.best)
+}
+```
+
+
+
+
+##Model 1 : Naive Prediction
+Build The Model
+With intension to make this a baseline model, We simply predict the basket based on user last order.
+
+
+```{r}
+
+m1.train.data = orders_products %>%
+  filter(user_id %in% train.users) %>%
+  group_by(user_id) %>%
+  top_n(n=1, wt=order_number)  %>% #last order has the higher order_number
+  select(user_id, product_id) %>% 
+  mutate (predicted=1)  %>%        #predict based on last ordered, therefore 1
+  full_join(train.construct) %>%  # join with train construct for items not predicted but in final order
+  select(user_id, product_id, actual, predicted) %>%
+  replace_na(list(predicted = 0))
+head(m1.train.data,5)
+
+```
+
+
+
+
+
+```{r}
+##To know the current storage capacity
+memory.limit()
+## To increase the storage capacity
+memory.limit(size=100000)
+```
+
+
+
+
+##Confusion Matrix
+```{r}
+m1.eval = binclass_eval(m1.train.data$actual, m1.train.data$predicted)
+m1.eval$cm
+``` 
+
+
+
+
+##Model Performance
+The result shows only 0.3467342 F1 Score.
+```{r}
+cat("Accuracy:  ", m1.eval$accuracy,
+    "\nPrecision: ", m1.eval$precision,
+    "\nRecall:    ", m1.eval$recall,
+    "\nFScore:    ", m1.eval$fscore)
+``` 
+
+
+
+
+##Model 2 : Smarter Naive Prediction (Baseline)
+In this model, we predict products in the basket by estimating their frequency of repurchased. This way we get a ratio to indicate probability of re-purchases. We use ROCR package to estimate the best cutoff point (at which above this cutoff we shall predict for re-order) that give us the optimum F1 score.
+
+Build The Model
+
+```{r}
+## Build Model
+m2.train.data = orders_products %>%
+  filter(user_id %in% train.users) %>%
+  group_by(user_id) %>%
+    mutate(total_orders = max(order_number)) %>%  # total number of orders made previously
+  ungroup %>% 
+  select(user_id, order_id, product_id, total_orders) %>%
+  group_by(user_id, product_id) %>%
+    summarize(predicted=n()/max(total_orders)) %>%
+  select(user_id, product_id, predicted) %>%
+  full_join(train.construct) %>%  # join with train construct for items not predicted but in final order
+  select(user_id, product_id, actual, predicted) %>%
+  replace_na(list(predicted = 0))
+head(m2.train.data,5)
+
+``` 
+
+
+
+##Optimize Cutoff
+We see that in order to maximize F1 Score, we need to set the cutoff threshold to 0.3368, which is the next step.
+
+```{r}
+library ("ROCR")
+#library ("splines2")
+### Threshold Optimization
+m2.rocr = optimize_cutoff(actual = m2.train.data$actual, probability = m2.train.data$predicted)
+kable(m2.rocr$best) %>% kable_styling(bootstrap_options = c("striped"))
+
+```
+
+
+##Confusion Matrix
+Let’s set the cutoff to 0.3367347 as discovered in previous step.
+
+```{r}
+m2.eval = binclass_eval(m2.train.data$actual, m2.train.data$predicted>0.3367347)
+m2.eval$cm
+```
+
+
+
+
+##Model Performance
+We are getting slightly better F1 Score (0.3753544) compare to previous naive model. We shall use this as the BASELINE.
+
+```{r}
+cat("Accuracy:  ", m2.eval$accuracy,
+    "\nPrecision: ", m2.eval$precision,
+    "\nRecall:    ", m2.eval$recall,
+    "\nFScore:    ", m2.eval$fscore)
+
+```
+
+
+

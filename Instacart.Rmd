@@ -1,0 +1,684 @@
+---
+title: "Instacart.Rmd"
+author: "Sonali Deole"
+date: "9/13/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Introduction: 
+
+Instacart is an American company that operates as a same-day grocery delivery service. Customers can select groceries through a web application and the order is reviewed and delivered by personal shoppers through various retailers. With the large customer base, the company collects data of the users’ transactions behaviour and purchasing history.Instacart published the anonymized data on customer orders collected over time. Dataset consists 3 million grocery orders for more than 200,000 Instacart Orders.
+
+There are three ways that Instacart generates revenue: delivery fees, membership fees, and mark-ups on in-store prices
+
+In this analysis report,Exploratory Data analysis and Machine Learning was performed in order to derive insights from customer data.
+
+
+##Research Goal & Objective
+The main objective of this analysis is to predict what will the user buy in the next order, given all data of prior orders.
+
+
+##Data Source: 
+Instacart released a public dataset, “The Instacart Online Grocery Shopping Dataset 2017”. The dataset contains over 3 million anonymized grocery orders from more than 200,000 Instacart users. This analysis will make use of this datasets.
+Data source can be downloaded here: https://www.kaggle.com/c/instacart-market-basket-analysis/data
+
+
+##R Markdown
+#R libraries used 
+Here is the list of libraries used for this Project
+```{r}
+#Here is the list of libraries used for this Project
+
+library(data.table) # fast file reading
+library(dplyr)
+library(ggplot2)
+library(knitr)       # web widget
+library(DT)
+library(tidyr)
+library(tidyverse)  # data manipulation
+library(randomForest)
+library(ROCR)       # rocr analysis
+library(repr)
+library(caret)      # rocr analysis
+library(treemap)    # tree visualization
+library(kableExtra) # nice table html formating 
+library(gridExtra)  # arranging ggplot in grid
+#library(corrgram)   # correlation graphics
+```
+
+
+##Importing the Dataset
+```{r}
+orders <- read_csv("orders.csv")
+products <- read_csv('products.csv')
+order_products_train <- read_csv('order_products__train.csv')
+order_products_prior <- read_csv('order_products__prior.csv')
+order_products <- read_csv('order_products__prior.csv')
+aisles <- read_csv('aisles.csv')
+departments <- read_csv('departments.csv')
+```
+
+##Data Insights:
+
+The dataset is a relational set of files describing customers’ orders over time. They are anonymized and contains a sample of over 3 million grocery orders from more than 200,000 Instacart users. For each user, Instacart provided between 4 and 100 of their orders, with the sequence of products purchased in each order, the week and hour of day the order was placed, and a relative measure of time between orders.
+
+Total six datasets were imported. Follwing section will explore each datasets in further detail. These datasets were sourced from an Kaggle competiotion (https://www.kaggle.com/c/instacart-market-basket-analysis/data)
+
+orders (3.4m rows, 206k users):
+
+order id: order identifier
+user_id: customer identifier
+eval_set: which evaluation set this order belongs in (see SET described below)
+order_number: the order sequence number for this user (1 = first, n = nth)
+order_dow: the day of the week the order was placed on
+order_hour_of_day: the hour of the day the order was placed on
+days_since_prior: days since the last order, capped at 30 (with NAs for order_number = 1)
+products (50k rows):
+
+product_id: product identifier
+product_name: name of the product
+aisle_id: foreign key
+department_id: foreign key
+aisles (134 rows):
+
+aisle_id: aisle identifier
+aisle: the name of the aisle
+deptartments (21 rows):
+
+department_id: department identifier
+department: the name of the department
+order_products__SET (30m+ rows):
+
+order_id: foreign key
+product_id: foreign key
+add_to_cart_order: order in which each product was added to cart
+reordered: 1 if this product has been ordered by this user in the past, 0 otherwise
+where SET is one of the four following evaluation sets (eval_set in orders):
+
+"prior": orders prior to that users most recent order (~3.2m orders)
+"train": training data supplied to participants (~131k orders)
+"test": test data reserved for machine learning competitions (~75k orders)
+
+
+
+##Understanding and Exploring the data
+#Aisles: 
+Total 134 ailes are present in this dataset. Here is a example of few aisles
+
+```{r}
+paste(sort(head(aisles$aisle)), collapse=', ')
+```
+
+##Departments:
+There are total of 21 departments in this dataset. Below is the list of departments listed
+```{r}
+paste(sort(departments$department), collapse = ', ')
+```
+
+##Products: 
+There are 49,688 products in the catalogue within 134 aisles and 21 departments. Sample products are as below.
+```{r}
+products %>% head %>% kable
+```
+
+
+##Departments and its Products:
+Below is a list of 5 products from each department.Product dataframe is related to Departments.
+```{r}
+left_join(departments, products) %>% select(department, product_name ) %>%
+  group_by(department) %>%
+  sample_n(5) %>%
+  summarise(five_examples_product=paste(product_name, collapse=' || ')) %>% sample_n(5) %>% kable
+```
+
+##Aisles and its Products:
+Products dataframe is also related to aisles. Each aisle relates to multiple prodcuts. By joining both aisles and products dataframe, we have an idea what type of prodcuts for each ailes. Example below shows sample of aisles and few of its related products.
+```{r}
+left_join(aisles, products) %>%
+  select(aisle, product_name ) %>%  group_by(aisle) %>%
+  sample_n(5) %>% 
+  summarise(five_examples_product=paste(product_name, collapse=' || ')) %>% sample_n(5) %>% kable
+```
+
+
+##Orders:
+Train Eval Set
+There are over 3 millions observations in orders dataset. Each row represent an unique order. Each variable potentially can be used as predictors. Let’s analyse the construct of one user. For example, user_id 1 had made 10 prior orders (order number from 1 to 10), last order is a train (eval_set).
+```{r}
+orders %>% filter (user_id==1) %>% 
+  kable %>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+##Test Eval_Set
+Looking at another construct of orders, User_id 3 had made 12 orders before the final order labeled as test (eval_set) order. From the data we know that order_number is being recycled for each user. Instacart did not provide us the basket content for test order. This is in fact the target for prediction.
+
+#This also means <user_id, product_id> made up the key for prediction
+```{r}
+orders %>% filter (user_id==3) %>% 
+  kable %>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+##Order_Product
+Each order contain multiple products purchased by user. Instacart had cleanly categorized the orders into ‘train’ and ‘prior’ in SINGLE order dataset.
+
+However, the detail of each orders are splitted into two datsets:
+- order_product_train: contain only detail product items of last order
+- order_product_prior: contain detail product items of all prior orders
+
+
+
+##Order_Product_Train
+
+order_product_train dataframe tells us which products were purchased in each order, for both train order and prior order. For example, we can know user_id 1 in the last order (order_id 1187899) purchased 10 unique products by quering order_product_train with the relevant order_id.
+
+```{r}
+order_products_train %>% filter (order_id == 1187899) %>% 
+  kable %>% kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+
+##Order_Product_Train_Prior
+Similary, detail items for a PRIOR ORDER (example order_id: 2550362) can be retireved by quering diffrent dataset order_product_prior.
+
+```{r}
+order_products_prior %>% filter (order_id == 2550362) %>% 
+  kable %>% kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+##Users:
+Ther is no dedicated dataframe for users. However, we can derive number of unique users from order dataframe. By grouping the user_id and eval_set column, we found that there are 75,000 test users, 131,209 train users.
+
+We shall use train users for training, and test users for testing.
+
+```{r}
+#table(orders$eval_set) %>% kable(col.names = c('eval_set','Frequency')) %>%   kable_styling(bootstrap_options = c("striped", "hover"), position = "float_right")
+
+orders %>% filter(eval_set %in% c('train','test') ) %>%
+  count(eval_set) %>%
+  mutate(percentage=n/sum(n)) %>%
+  kable %>% kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+
+##Exploratory Data Analysis: 
+Understanding the buying behavior by answering the following questions? 
+1)What products do people buy and what do they usually reorder?
+2)When do they buy? Does time of the day infleunce their buying behavior?
+
+To reduce our coding steps, we construct a reusable dataframe combining all details from orders and its products. This dataframe will contain rows for prior orders and products only (excluding last order which is labeled as ‘train’).
+
+#orders: 
+How may orders? 
+Most users made few orders. The number of orders a users made decrease significally along the order numbers. Maximum orders any users had made is 99.
+
+
+```{r}
+tmp = orders %>% group_by(user_id) %>% summarize(n_orders = max(order_number))
+tmp %>% ggplot(aes(x=as.factor(n_orders))) + geom_bar() +
+    ylab('Count of Users') +
+    xlab('Number of Orders Made By Users') +
+    theme(
+      axis.text.x  = element_text (size = 6.0, angle = (90), hjust = 1, vjust = 0.5)
+    )
+
+```
+
+
+
+##How Soon Until Next Order ?
+It is very obvious that most users made their orders weekly (every 7 days) and monthly (every 30 days). See the peak of day 7 and day 30 in the chart below.
+
+```{r}
+tmp = orders %>% 
+  filter(order_number>1) %>% # days_since_prior is NA for first order, need to filter out
+  group_by(order_id) %>% 
+    summarize(n_orders = max(days_since_prior_order))
+tmp %>% ggplot(aes(x=as.factor(n_orders))) + geom_bar() + ylab('Count of Orders') + xlab('Days Since Prior For Each Order')
+
+```
+
+
+
+##Orders_Products:
+  Most Popular Products Sold
+  We know that banana are the most popular products. The number of orders varies greatly for different products.   Illustration below uses shows sample of only 30 top products. Notice however the varience is not obvious after top 10 products.
+  
+```{r}
+ 
+tmp = order_products_train %>%
+  left_join(products) %>%
+  group_by(product_name) %>%
+  summarize(count=n()) %>%
+  top_n(n=30, wt=count) %>%  mutate(percentage=count/sum(count))
+p1 = ggplot (tmp, aes(x=reorder(product_name,count), y=percentage)) +  
+  geom_col() + ggtitle('Products Top 30') + ylab('Percentage of Orders') +
+  theme (
+    axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+    axis.title.x = element_blank()) 
+p2 = ggplot (data = tmp, aes( x= '', y=percentage )) + 
+  ggtitle('Products Top 30') + ylab('percentage.of.orders') + geom_boxplot() + xlab('Products')
+grid.arrange(p1, p2, ncol = 2)
+
+```
+  
+
+  
+
+
+##Most Popular Department Sold:
+Certain departmens are clearly more popular, like produce and dairy eggs. Both deparments combined contributed to more than 40% of total orders.
+
+
+```{r}
+tmp = order_products_train %>%
+  left_join(products) %>%
+  left_join(departments) %>%
+  group_by(department) %>%
+  summarize(count=n()) %>%
+  mutate(percentage=count/sum(count))
+p1 = ggplot (tmp, aes(x=reorder(department,count), y=percentage)) +  
+  geom_col() + ggtitle('Departments') + ylab('Percentage of Orders') +
+  theme (
+    axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+    axis.title.x = element_blank()) 
+p2 = ggplot (data = tmp, aes( x= '', y=percentage )) + 
+  ggtitle('Departments') + ylab('percentage.of.orders') + geom_boxplot() + xlab('Departments')
+grid.arrange(p1, p2, ncol = 2)
+
+```
+
+
+
+```{r}
+##To know the current storage capacity
+memory.limit()
+## To increase the storage capacity
+memory.limit(size=100000)
+
+```
+
+
+##Most Popular Aisles Sold:
+We looked into the buying trend of product by ailes and notice that certain aisle like vegetables and fruits contributes to almost 30% of total orders. Chart below shows top 30 aisles.
+```{r}
+tmp = order_products_prior %>%
+  left_join(products) %>%
+  left_join(aisles) %>%
+  group_by(aisle) %>%
+  summarize(count=n()) %>%
+  top_n(n=30, wt=count) %>%  mutate(percentage=count/sum(count))
+p1 = ggplot (tmp, aes(x=reorder(aisle,count), y=percentage)) +  
+  geom_col() + ggtitle('Aisles Top 30') + ylab('Percentage of Orders') +
+  theme (
+    axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+    axis.title.x = element_blank()) +  ylab('Percentage of Orders') + xlab('Aisles')
+p2 = ggplot (tmp, aes( x= '', y=percentage )) + 
+  ggtitle('Aisles Top 30') + ylab('percentage.of.orders') + geom_boxplot() + xlab('Aisles')
+grid.arrange(p1, p2, ncol = 2)
+
+```
+
+
+
+
+
+##Products Ordered Day Pattern:
+We can see that both Day 0 and Day 1 stands out to be the most busy shopping day for instacart. This means that day of order made may influence the basket size.
+```{r}
+orders %>%
+  group_by(order_dow) %>%
+    summarize(count = n()) %>%
+  mutate(percentage=count/sum(count)) %>%
+  ggplot (aes(x=as.factor(order_dow), y=percentage, fill=as.factor(order_dow))) + 
+    geom_col()+ ylab('Percentage of Orders') + ggtitle('Daily Orders')
+
+```
+
+
+
+
+
+##Hourly Products Ordered:
+Morning to afternoon is the peak time when customers place their orders. Clearly the time of the day influcences the buying behavior. 
+```{r}
+order_products_prior %>%
+  left_join(orders) %>%
+  group_by(order_hour_of_day) %>%
+  summarize(count = n()) %>%
+  mutate(percentage=count/sum(count)) %>%
+  ggplot (aes(x=as.factor(order_hour_of_day), y=percentage)) + 
+    geom_col()+ ylab('Percentage of Orders') + ggtitle('Hourly Orders')
+```
+
+`
+
+##Top 10 products managed to score betwen 6% to 8% of hourly sales out of 50,000 products. 
+Every hour has slightly different combination of top 10 products (combination out of 12 products). 
+That means certain products are predictable for ordering irregardless of the hour of order.
+
+```{r}
+##To know the current storage capacity
+memory.limit()
+## To increase the storage capacity
+memory.limit(size=100000)
+```
+
+```{r}
+order_products_prior %>% 
+  left_join(orders) %>% left_join(products) %>%
+  group_by(order_hour_of_day, product_name) %>%
+  summarize(n=n()) %>%
+  mutate(percentage=n/sum(n)) %>%
+  top_n(10, wt=n) %>%
+  ggplot (aes(x=as.factor(order_hour_of_day), y=percentage, fill=product_name)) + 
+    geom_col() + ylab('Proprtion of Orders In A Hour') + ggtitle('Hourly Top 10 Products Ordered') +
+    theme(legend.position="bottom",legend.direction="horizontal")
+```
+
+
+
+
+##Basket Analysis
+Basket Size Distribution
+Number of items in all orders range from 1 to 145. The histogram below is highly skewed towards small basket size. Majority of users purchased 5 items in their orders.
+
+```{r}
+tmp = order_products_prior %>%
+  group_by(order_id)  %>%
+  summarize( basket_size=n(), 
+             reordered_items = sum(reordered)) %>%
+  group_by(basket_size) %>%
+  summarize(n=n(), avg_reordered_items =mean(reordered_items)) %>%
+  arrange(basket_size)
+  
+tmp %>% ggplot(aes(x=as.factor(basket_size))) +
+    geom_col(aes(y=n)) +
+    ylab('Order Count') +
+    xlab('Number of Items in Basket') +
+    ggtitle('Basket Size Distribution') +
+    theme(
+      axis.text.x  = element_text (size = 6.0, angle = (90), hjust = 1, vjust = 0.5)
+    )
+```
+
+
+##Re-Ordered Analysis
+Analyzing the re-ordered products is the most important part of the EDA. This is becasue insights from this analysis can help to develop intuition for furhter feature engineering that will make the prediction more meaningful.
+
+#Average Re-ordered Items In Basket Distribution
+
+
+
+```{r}
+tmp %>% ggplot (aes(x=as.factor(basket_size))) + 
+    geom_point(aes(y=avg_reordered_items), color='red') +
+    ylab('Avg Number of Re-Ordered Items') +  
+    xlab('Number of Items in Basket') +
+    ggtitle('Reorder Rate by Basket Size') +
+    theme(
+      axis.text.x  = element_text (size = 6.0, angle = (90), hjust = 1, vjust = 0.5)
+    ) +
+    geom_abline(intercept = 0, slope = 1, color='blue')
+
+```
+
+
+
+##Reordering: 
+ How often do people order the same items again?
+ 59% of the ordered items are reorders.
+
+```{r}
+tmp <- order_products_train %>% 
+  group_by(reordered) %>% 
+  summarize(count = n()) %>% 
+  mutate(reordered = as.factor(reordered)) %>%
+  mutate(proportion = count/sum(count))
+kable (tmp)
+
+tmp %>% 
+  ggplot(aes(x=reordered,y=count,fill=reordered))+
+  geom_bar(stat="identity")
+```
+
+
+
+##Most often reordered:
+Lets find out the products that have highest probability of being reordered. 
+These 10 products have the highest probability of being reordered.
+```{r}
+tmp <-order_products_train %>% 
+  group_by(product_id) %>% 
+  summarize(proportion_reordered = mean(reordered), n=n()) %>% 
+  filter(n>40) %>% 
+  top_n(10,wt=proportion_reordered) %>% 
+  arrange(desc(proportion_reordered)) %>% 
+  left_join(products,by="product_id")
+
+kable(tmp)
+
+tmp %>% 
+  ggplot(aes(x=reorder(product_name,-proportion_reordered), y=proportion_reordered))+
+  geom_bar(stat="identity",col = "red", fill="blue")+
+  theme(axis.text.x=element_text(angle=90, hjust=1),axis.title.x = element_blank())+coord_cartesian(ylim=c(0.85,0.95))
+```
+
+
+
+
+##Which item do people put into the cart first?
+People seem to be quite certain about Multifold Towels and if they buy them, put them into their cart first 
+in 66% of the time.
+```{r}
+tmp <- order_products_train %>% 
+  group_by(product_id, add_to_cart_order) %>% 
+  summarize(count = n()) %>% mutate(pct=count/sum(count)) %>% 
+  filter(add_to_cart_order == 1, count>10) %>% 
+  arrange(desc(pct)) %>% 
+  left_join(products,by="product_id") %>% 
+  select(product_name, pct, count) %>% 
+  ungroup() %>% 
+  top_n(10, wt=pct)
+kable(tmp)
+
+tmp %>% 
+  ggplot(aes(x=reorder(product_name,-pct), y=pct))+
+  geom_bar(stat="identity",col = "red", fill="blue")+
+  theme(axis.text.x=element_text(angle=90, hjust=1),axis.title.x = element_blank())+coord_cartesian(ylim=c(0.4,0.7))
+
+```
+
+
+
+
+##Association between time of last order and probability of reorder
+This is interesting: We can see that if people order again on the same day, they order the same product more often. 
+Whereas when 30 days have passed, they tend to try out new things in their order.
+```{r}
+order_products_train %>% 
+  left_join(orders,by="order_id") %>% 
+  group_by(days_since_prior_order) %>%
+  summarize(mean_reorder = mean(reordered)) %>%
+  ggplot(aes(x=days_since_prior_order,y=mean_reorder))+
+  geom_bar(stat="identity",col = "red", fill="blue")
+
+```
+
+
+
+
+##Association between number of orders and probability of reordering
+Products with a high number of orders are naturally more likely to be reordered. 
+However, there seems to be a ceiling effect.
+```{r}
+order_products_train %>% 
+  group_by(product_id) %>% 
+  summarize(proportion_reordered = mean(reordered), n=n()) %>%
+  ggplot(aes(x=n,y=proportion_reordered))+
+  geom_point()+
+  geom_smooth(color="red")+
+  coord_cartesian(xlim=c(0,2000))
+```
+
+
+##Organic vs Non-organic
+What is the percentage of orders that are organic vs. not organic?
+```{r}
+  products <- products %>% 
+  mutate(organic=ifelse(str_detect(str_to_lower(products$product_name),'organic'),"organic","not organic"),
+         organic= as.factor(organic))
+
+tmp <- order_products_train %>% 
+  left_join(products, by="product_id") %>% 
+  group_by(organic) %>% 
+  summarize(count = n()) %>% 
+  mutate(proportion = count/sum(count))
+kable(tmp)
+tmp %>% 
+  ggplot(aes(x=organic,y=count, fill=organic))+
+  geom_bar(stat="identity")
+```
+
+
+
+
+##Reordering Organic vs Non-Organic
+People more often reorder organic products than in-organic products.
+```{r}
+tmp <- order_products_train %>% left_join(products,by="product_id") %>% group_by(organic) %>% summarize(mean_reordered = mean(reordered))
+kable(tmp)
+tmp %>% ggplot(aes(x=organic,fill=organic,y=mean_reordered))+geom_bar(stat="identity") 
+```
+
+
+
+
+##Visualizing the Product Portfolio
+Here is use to treemap package to visualize the structure of instacarts product portfolio. 
+  In total there are 21 departments containing 134 aisles.
+```{r}
+library(treemap)
+tmp <- products %>% group_by(department_id, aisle_id) %>% summarize(n=n())
+```
+
+
+```{r}
+tmp <- tmp %>% left_join(departments,by="department_id")
+tmp <- tmp %>% left_join(aisles,by="aisle_id")
+
+tmp2<-order_products_train %>% 
+  group_by(product_id) %>% 
+  summarize(count=n()) %>% 
+  left_join(products,by="product_id") %>% 
+  ungroup() %>% 
+  group_by(department_id,aisle_id) %>% 
+  summarize(sumcount = sum(count)) %>% 
+  left_join(tmp, by = c("department_id", "aisle_id")) %>% 
+  mutate(onesize = 1)
+```
+
+```{r}
+treemap(tmp2,index=c("department","aisle"),vSize="onesize",vColor="department",
+        palette="Set3",title="",sortID="-sumcount", border.col="#FFFFFF",type="categorical", 
+        fontsize.legend = 0,bg.labels = "#FFFFFF")
+```
+
+
+
+
+##How many unique products are offered in each department/aisle?
+The size of the boxes shows the number of products in each category.
+```{r}
+treemap(tmp,index=c("department","aisle"),vSize="n",title="",palette="Set3",border.col="#FFFFFF")
+```
+
+
+
+
+
+##How often are products from the department/aisle sold?
+The size of the boxes shows the number of sales.
+```{r}
+treemap(tmp2,index=c("department","aisle"),vSize="sumcount",title="",palette="Set3",border.col="#FFFFFF")
+```
+
+
+
+
+
+##Exploring Customer Habits
+Customers who reorder the same products again all the time. 
+3,487 customers always reordering products.
+Customers reordering only
+```{r}
+tmp <- order_products_prior %>% 
+  group_by(order_id) %>% 
+  summarize(m = mean(reordered),n=n()) %>% 
+  right_join(filter(orders,order_number>2), by="order_id")
+
+tmp2 <- tmp %>% 
+  filter(eval_set =="prior") %>% 
+  group_by(user_id) %>% 
+  summarize(n_equal = sum(m==1,na.rm=T), percent_equal = n_equal/n()) %>% 
+  filter(percent_equal == 1) %>% 
+  arrange(desc(n_equal))
+
+datatable(tmp2, class="table-condensed", style="bootstrap", options = list(dom = 'tp'))
+
+```
+
+
+
+
+##Here is an example to the customer with a stong habit of always reordering the same product.
+Customer id #99753, having 97 orders with only reordered items. She/he seems to like Organic Milk :-)
+One would assume that he would buy “Organic Whole Milk” and 
+“Organic Reduced Fat Milk”:
+```{r}
+tmp <- orders %>% filter(user_id==99753, eval_set == "train")
+tmp2 <- order_products_train %>%  
+  filter(order_id == tmp$order_id) %>% 
+  left_join(products, by="product_id")
+
+datatable(select(tmp2,-aisle_id,-department_id,-organic), style="bootstrap", class="table-condensed", options = list(dom = 't'))
+
+
+```
+
+
+
+
+
+
+##Top  10 aisles that represent the 45.3% of sales:
+```{r}
+tmp <- order_products_train %>%
+  left_join(products,by="product_id") %>%
+  left_join(aisles,by="aisle_id") %>%
+  left_join(departments,by="department_id") %>%
+  group_by(aisle,department) %>%
+  tally(sort=TRUE) %>%
+  mutate(perc = round(100*n/nrow(order_products_train),2)) %>%
+  ungroup() %>%
+  top_n(10,n)
+tmp %>%
+  ggplot(aes(x=reorder(aisle, -n), y=n, fill=department)) +
+  geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle=90, hjust=1), axis.title.x = element_blank())
+```
+
+
+
+
+

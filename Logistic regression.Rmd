@@ -1,0 +1,280 @@
+---
+title: "Logistic Regression"
+author: "Sonali Deole"
+date: "10/4/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+##Here is the list of libraries used for this Project
+
+```{r}
+#Here is the list of libraries used for this Project
+
+library(data.table) # fast file reading
+library(dplyr)
+library(ggplot2)
+library(knitr)       # web widget
+library(DT)
+library(tidyr)
+library(tidyverse)  # data manipulation
+library(randomForest)
+library(ROCR)       # rocr analysis
+library(repr)
+library(caret)      # rocr analysis
+library(treemap)    # tree visualization
+library(kableExtra) # nice table html formating 
+library(gridExtra)  # arranging ggplot in grid
+#library(corrgram)   # correlation graphics
+```
+
+
+
+Machine Learning Framing
+We construct all the products that users had purchased in the last 3 orders, then use machine learning classification to predict will each of the product be purchased again. We shall use decision tree and logistic regression for this prediction.
+
+Feature Engineering
+Order Features
+These are original features provided by Instacart. Although there are no other features engineered specifically to describe Order, thse features are being used to generate other features in the following sections.
+
+orders
+- order_dow
+- order_hour_of_day
+- days_since_prior_order
+- reordered
+
+User Features
+We create five features which is unique to each individual user. These are the features that desribe the user.
+
+users
+- u_n_orders: Number of Orders Per User
+- u_avg_priors: Average waiting days between orders per User
+- u_avg_hod: Average Order Placing Hour Per User
+- u_avg_dow: Average Order Placing Day Per User
+- u_avg_order_size: Average Size of Basket (items in order) Per User
+
+
+
+```{r}
+##To know the current storage capacity
+memory.limit()
+## To increase the storage capacity
+memory.limit(size=100000)
+```
+
+```{r}
+#### user features
+users_ = orders_products %>%
+  group_by(user_id,order_id) %>%
+    mutate(u_o_size = ifelse(row_number()==1, max(add_to_cart_order),0) ) %>%
+  group_by(user_id) %>%
+    summarize(
+      u_n_orders = max(order_number),
+      u_avg_priors = mean(days_since_prior_order,na.rm=TRUE),
+      u_avg_hod = mean(order_hour_of_day),
+      u_avg_dow = mean(order_dow),
+      u_avg_order_size = sum(u_o_size)/max(order_number)
+    ) %>% 
+  arrange(user_id)
+
+head(users_)
+
+```
+
+
+Product Features
+We create two product specific features.
+
+products
+
+avg_product_order_dow: Average of product order_dow
+avg_product_order_hod: Average of product order_hour_of_day
+
+```{r}
+products_ = orders_products %>%
+  group_by(product_id) %>%
+  summarize( 
+    p_avg_dow = mean(order_dow),
+    p_avg_hod = mean(order_hour_of_day)
+  ) %>% arrange(product_id)
+
+head(products_)
+
+```
+
+User-Product Features
+We shall introduce product related features that are user-product specifc
+
+up_n_reordered : how many times a user reorderedthis product
+up_avg_priors : Average number of days in between before a user purchase this product
+up_avg_hod : Average hour a user purchase this product
+up_avg_dow : Average day of week a user purchase this product
+up_avg_rank : Average add to cart number a user select this product
+
+
+
+
+
+
+
+
+Construct Training Data
+We shall combined training construct table with the new engineered features to form the training data. Categorical data which are merely names or identification will be removed since they should not contribute to prediction.
+
+After this step, the trianing data is ready for machine learning algorithm of choice.
+
+```{r}
+library(dplyr)
+
+m3.train.data = orders_products %>%
+  filter(user_id %in% train.users) %>%
+  left_join(users_) %>% 
+  left_join(products) %>%
+  #left_join(users_)  #user_products_ already contain user specific features
+  full_join(train.construct, by=c('user_id','product_id')) %>%
+  arrange(user_id, product_id) %>%
+  select(-c('key','user_id','order_id', 'product_id', 'product_name', 'department_id', 'aisle_id', 'department','aisle', 'days_since_prior_order')) 
+
+glimpse(m3.train.data)
+```
+
+Construct Test Data
+```{r}
+m3.test.data = orders_products %>%
+  filter(user_id %in% test.users) %>%
+  left_join(user_products) %>% 
+  left_join(products_) %>%
+  #left_join(users_)  #user_products_ already contain user specific features
+  full_join(test.construct, by=c('user_id','product_id')) %>%
+  arrange(user_id, product_id) %>%
+  select(-c('key','user_id','order_id', 'product_id', 'product_name', 'department_id', 'aisle_id', 'department', 'aisle', 'days_since_prior_order')) 
+
+glimpse(m3.test.data)
+```
+
+
+Model 3 : Logistic Regression
+ Model Training
+
+```{r}
+m3.fit = glm(actual ~ ., family = binomial, data = m3.train.data)
+
+```
+
+Training Data Performance
+Prediction
+```{r}
+m3.predict = predict(m3.fit, type = 'response', newdata = m3.train.data)
+
+```
+
+Confusion Matrix
+```{r}
+m3.eval = binclass_eval(m3.train.data$actual, m3.predict>0.2233115)
+m3.eval$cm
+
+```
+
+Model Evaluation
+Logistic regression produce F1 Score of 0.5388937 with training data, a much better compared to Model 1 and Model 2. We shall proceed test the model on unknown data, the test data.
+
+```{r}
+cat("Accuracy:  ",   m3.eval$accuracy,
+    "\nPrecision: ", m3.eval$precision,
+    "\nRecall:    ", m3.eval$recall,
+    "\nFScore:    ", m3.eval$fscore)
+```
+
+
+```{r}
+rocr.pred = prediction(m3.predict, m3.train.data$actual)
+rocr.perf = performance(rocr.pred, measure = "tpr", x.measure = "fpr")
+rocr.auc = as.numeric(performance(rocr.pred, "auc")@y.values)
+plot(rocr.perf,
+    lwd = 3, colorize = TRUE,
+    print.cutoffs.at = seq(0, 1, by = 0.1),
+    text.adj = c(-0.2, 1.7),
+    main = 'ROC Curve')
+mtext(paste('auc : ', round(rocr.auc, 5)))
+abline(0, 1, col = "red", lty = 2)
+```
+
+Test Data Performance
+Prediction
+
+```{r}
+m3.predict.test = predict(m3.fit, type = 'response', newdata = m3.test.data)
+```
+
+Optimize Cutoff
+```{r}
+### Threshold Optimization
+m3.rocr.test = optimize_cutoff(actual = m3.test.data$actual, probability = m3.predict.test)
+kable(m3.rocr.test$best) %>% kable_styling(bootstrap_options = c("striped"))### Threshold Optimization
+m3.rocr.test = optimize_cutoff(actual = m3.test.data$actual, probability = m3.predict.test)
+kable(m3.rocr.test$best) %>% kable_styling(bootstrap_options = c("striped"))
+```
+
+
+Confusion Matrix
+```{r}
+m3.eval.test = binclass_eval(m3.test.data$actual, m3.predict.test>0.2233115)
+m3.eval.test$cm
+```
+
+
+Model Evaluation
+Logistic regression produce F1 Score of 0.5388937 with training data, a much better compared to Model 1 and Model 2. We shall proceed test the model on unknown data, the test data.
+
+We acheived F1 Score of 0.5405588, slightly higher than training data.
+
+```{r}
+cat("Accuracy:  ",   m3.eval.test$accuracy,
+    "\nPrecision: ", m3.eval.test$precision,
+    "\nRecall:    ", m3.eval.test$recall,
+    "\nFScore:    ", m3.eval.test$fscore)
+
+```
+
+
+```{r}
+rm(list=c('m3.fit','m3.predict', 'm3.rocr'))
+```
+
+
+
+```{r}
+rocr.auc
+
+```
+
+
+```{r}
+plot(rocr.perf,
+     lwd = 3, colorize = TRUE,
+     print.cutoffs.at = seq(0, 1, by = 0.1),
+     text.adj = c(-0.2, 1.7),
+     main = 'ROC Curve')
+mtext(paste('auc : ', round(rocr.auc, 5)))
+```
+
+
+```{r}
+abline(0, 1, col = "red", lty = 2)
+```
+
+
+
+
+
+
+
