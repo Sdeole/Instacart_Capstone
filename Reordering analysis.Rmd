@@ -12,16 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 Reordering vs Days Since Prior Order
 We understand from order analysis earlier that most users place their orders every 7 and 30 days. However, from reorder ration perspective, day 7 and day 30 has high contrast whereby day 7 orders has high reorder ratio and day 30 has lowest reordering ratio.
 
-
-```{r}
-
-library (dplyr)
-#user_loginlogout<- merge(user_login, user_logout, by = c("maxsessionuid", "groupname","defsite", "userid", "type"))
-#orders_merge <- merge(orders, order_products_prior, by = c("order_id"))
-```
-
-
-
 ```{r}
 tmp = order %>%
   filter(order_number>1) %>%
@@ -57,27 +47,6 @@ tmp %>% ggplot (aes(x=order_hour_of_day, y=non_reorder_ratio)) + geom_point() + 
   ggtitle('Non Reorder Ratio over Time of Order Placed')
 
 ```
-
-
-Reordering vs Day Of Order
-
-```{r}
-tmp = orders_products %>%
-  filter(order_number>1) %>%
-  group_by(order_dow, order_id) %>%
-  summarize(
-    contain_reordered = max(reordered)
-  ) %>%
-  summarize( 
-    reordered_orders = sum(contain_reordered),
-    n = n()+1
-  ) %>%
-  mutate(non_reorder_ratio= 1-(reordered_orders/n))
-tmp %>% ggplot (aes(x=order_dow, y=non_reorder_ratio)) + geom_point() + geom_line() +
-  ggtitle('Non Reorder Ratio over Day of Purchase')
-
-```
-
 
 Reordering vs Day Of Order
 Intuitively, we can think of the more regular a buyer is, the person tend to repeat ordering the same products.
