@@ -4,6 +4,11 @@
 Instacart is an American company that operates a grocery delivery and pick-up service in the United States and Canada. The company offers its services via a website and mobile app. The service allows customers to order groceries from participating retailers with the shopping being done by a personal shopper. The way the company generates revenue is by adding markup on prices for specific stores, delivery and membership fee. Hence, the main business objective for the organization is to, not only increase the number of customer memberships but also improve the repeat visit and orders. Predicting consumer engagement and behavior with the products and grocery stores have a huge impact on Instacart’s success.
 The focus of this analysis was to build a probability model to predict what the probability is that an Instacart customer will order. To do that we have to understand customers behavior patterns. We will use data from previous purchases to know when most purchases are made on Instacart and order product data to learn what is a best-selling product. This analysis will mostly be done by data visualization and market basket analysis. 
 
+Data Source: 
+Instacart released a public dataset, “The Instacart Online Grocery Shopping Dataset 2017”. The dataset contains over 3 million anonymized grocery orders from more than 200,000 Instacart users. This analysis will make use of this datasets.
+Data source can be downloaded here:
+https://www.kaggle.com/c/instacart-market-basket-analysis/data
+
 DATA DESCRIPTION:
 With data Sourced from Kaggle: There are six csv data files - Order, Products, Aisles, Department, Order Product Prior, Order Product Train,
 Instacart Data description (Sample):
@@ -73,7 +78,8 @@ Based on the analysis done on Instacart, I found out that:
 
 ACKNOWLEDGEMENTS:
 This was one of my capstone projects for the Data Science Career Track program at TEXAS A&M.
-I would like to thank my Professor Jonathan Flower for his guidance and feedback. In addition, I would like to thank my colleague Gina Choe for helping out when needed.  
+I would like to thank my Professor Jonathan Fowler for his guidance, support and feedback. 
+In addition, I would like to thank my colleague Gina Choe for helping out in the time of need.  
 
 CITATIONS
 1.	The Instacart Online Grocery Shopping Dataset 2017“, Accessed from https://www.instacart.com/datasets/grocery-shopping-2017
