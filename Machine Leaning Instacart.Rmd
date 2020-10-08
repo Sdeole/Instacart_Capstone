@@ -10,10 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-Here is the list of libraries used for this Project
+##Here is the list of libraries used for this Project
 ```{r}
-#Here is the list of libraries used for this Project
-
 library(data.table) # fast file reading
 library(dplyr)
 library(ggplot2)
@@ -42,7 +40,7 @@ The objective is to predict what product will the customer purchase in the next 
 It requires probability estimation of each product that had been purchased before.
 This is a classification problem, as well as a regression of probability of repurchases.
 
-For this analysis, we shall use two Naive models (handcrafted baseline) and one Machine Learning Logistic regression will be used for Machine Learning approach for its speed and simplicity; to demonstrate the feasibility to producing a better outcome then baseline.
+For this analysis, we shall use two Naive models (handcrafted baseline) and one Logistic regression will be used for Machine Learning approach for its speed and simplicity; to demonstrate the feasibility to producing a better outcome then baseline.
 
 
 ##Train/Test Dataset Splitting
@@ -64,9 +62,6 @@ cat("Total Rows in Training Users: ", length(train.users),
     " / ", 100*length(test.users)/(length(test.users)+length(train.users)))
 
 ```
-
-
-
 
 ##Training Data Construct
 The data frame used for training should contain the below columns and features:
@@ -144,14 +139,12 @@ rm(list=c('construct1','construct2'))
 head(test.construct,5)
 ```
 
-
-
 ##Model Evaluation & Optimization
 Instacart has close to 50k products in their catalogue. As the maximum number of items ordered by a user is just a fraction of the 50k available product. This means by simply predicting nothing is purchased in the next basket, we would yeild close to 100% accuracy.
 
-Due to the highly imbalance dataset, Instacart require F1 Score as the competition scoring, instead of accuracy.
+Due to the highly imbalance dataset,  F1 Score was used to evaluate the model performance. F1 is the weighted average of precision and recall and therefore F1 would be the best predictor of the model performance for this data set.
 
-To evaluate the performance of the model, we had created a custom function to build a confusion matrix and derive other binary classification metrics.
+To evaluate the performance of the model, a custom function was created to build a confusion matrix and derive other binary classification metrics.
 
 
 ```{r}
@@ -168,8 +161,7 @@ binclass_eval = function (actual, predict) {
 ```
 
 
-
-If the prediction is based on probability, we shall build a function to discover cutoff that optimize various performance metrics.
+##If the prediction is based on probability, we shall build a function to discover cutoff that optimize various performance metrics.
 ```{r}
 ### Cutoff Threshold Optimization
 optimize_cutoff = function (actual, probability) {
@@ -207,7 +199,6 @@ With intension to make this a baseline model, We simply predict the basket based
 
 
 ```{r}
-
 m1.train.data = orders_products %>%
   filter(user_id %in% train.users) %>%
   group_by(user_id) %>%
@@ -218,10 +209,7 @@ m1.train.data = orders_products %>%
   select(user_id, product_id, actual, predicted) %>%
   replace_na(list(predicted = 0))
 head(m1.train.data,5)
-
 ```
-
-
 
 
 
@@ -240,8 +228,6 @@ memory.limit(size=100000)
 m1.eval = binclass_eval(m1.train.data$actual, m1.train.data$predicted)
 m1.eval$cm
 ``` 
-
-
 
 
 ##Model Performance
@@ -279,8 +265,6 @@ head(m2.train.data,5)
 
 ``` 
 
-
-
 ##Optimize Cutoff
 We see that in order to maximize F1 Score, we need to set the cutoff threshold to 0.3368, which is the next step.
 
@@ -301,7 +285,6 @@ Let’s set the cutoff to 0.3367347 as discovered in previous step.
 m2.eval = binclass_eval(m2.train.data$actual, m2.train.data$predicted>0.3367347)
 m2.eval$cm
 ```
-
 
 
 
