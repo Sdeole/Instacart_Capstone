@@ -1,4 +1,4 @@
- Instacart_Capstone
+ Instacart Basket Analysis: Predicting what the buyer will buy next in his basket
 
 #INTRODUCTION: 
 Instacart is an American company that operates a grocery delivery and pick-up service in the United States and Canada. The company offers its services via a website and mobile app. The service allows customers to order groceries from participating retailers with the shopping being done by a personal shopper. The way the company generates revenue is by adding markup on prices for specific stores, delivery and membership fee. Hence, the main business objective for the organization is to, not only increase the number of customer memberships but also improve the repeat visit and orders. Predicting consumer engagement and behavior with the products and grocery stores have a huge impact on Instacart’s success.
@@ -79,5 +79,6 @@ CITATIONS
 1.	The Instacart Online Grocery Shopping Dataset 2017“, Accessed from https://www.instacart.com/datasets/grocery-shopping-2017
 2.	Data Dictionary: https://gist.github.com/jeremystan/c3b39d947d9b88b3ccff3147dbcf6c6b 
 3.	https://rstudio-pubs-static.s3.amazonaws.com/446413_6ac206ffa826466bb3a33be2f338c61f.html#analysis-recommendations 
+4. https://www.kaggle.com/philippsp/exploratory-analysis-instacart
 
 
