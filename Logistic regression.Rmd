@@ -37,9 +37,7 @@ library(gridExtra)  # arranging ggplot in grid
 #library(corrgram)   # correlation graphics
 ```
 
-
-
-Machine Learning Framing
+##Machine Learning Framing
 We construct all the products that users had purchased in the last 3 orders, then use machine learning classification to predict will each of the product be purchased again. We shall use decision tree and logistic regression for this prediction.
 
 Feature Engineering
@@ -121,12 +119,6 @@ up_avg_dow : Average day of week a user purchase this product
 up_avg_rank : Average add to cart number a user select this product
 
 
-
-
-
-
-
-
 Construct Training Data
 We shall combined training construct table with the new engineered features to form the training data. Categorical data which are merely names or identification will be removed since they should not contribute to prediction.
 
@@ -167,7 +159,6 @@ Model 3 : Logistic Regression
 
 ```{r}
 m3.fit = glm(actual ~ ., family = binomial, data = m3.train.data)
-
 ```
 
 Training Data Performance
