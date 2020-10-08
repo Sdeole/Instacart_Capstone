@@ -16,16 +16,15 @@ Instacart Data description (Sample):
 
 RESEARCH GOAL AND OBJECTIVE:
 •	Main Goal: The objective of this analysis was to predict what will the user buy in the next order, given all data of prior orders.
-•	Sub Goal: Before suggesting which users would reorder the item again, user interaction with the items will be explored
-GOAL
-•	We will look at what days customers usually order, i.e hours and days
-•	We will look how many days it would take the users to reorder the product
-•	We will ask: What are the best-selling products or the most reordered products?
-•	We will ask: When do people order?
+•	Sub Goal: Before suggesting which users would reorder the item again, user interaction with the items will be explored by asking the following questions.
+What days customers usually order, i.e hours and days
+How many days it would take the users to reorder the product
+What are the best-selling products or the most reordered products?
+When do people order?
 
 EXPLORATORY DATA ANALYSIS
 Exploratory data analysis was performed to understand the buying behavior by asking some interesting questions.
-•	What usually does people buy, and which one they usually reorder
+•	What usually do people buy, and which products they usually reorder
 •	When do they buy (day and time)? Is there a buying trend and does it influence what they buy?
 
 KEY OBSERVATIONS: 
