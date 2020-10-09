@@ -1,5 +1,5 @@
 ---
-title: "Machine Learning"
+title: "Predictive Analysis"
 author: "Sonali Deole"
 date: "9/27/2020"
 output: html_document
@@ -8,7 +8,6 @@ output: html_document
 ```{r setup, include=TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
 
 ##Here is the list of libraries used for this Project
 ```{r}
@@ -28,9 +27,7 @@ library(kableExtra) # nice table html formating
 library(gridExtra)  # arranging ggplot in grid
 #library(corrgram)   # correlation graphics
 ```
-
-
-##MACHINE LEARNING: 
+##Machine Learning
 Predictive Analysis
 
 Naive Prediction, Simple Naive Prediction and Logististic regression  was selected for the analysis. 
@@ -44,7 +41,8 @@ For this analysis, we shall use two Naive models (handcrafted baseline) and one 
 
 
 ##Train/Test Dataset Splitting
-Instacart did not provide us test order detail, therefore we shall use the train users for both trainng and testing. We achieve this by splitting the train users and its related orders and products into train dataset and train dataset, at 70%/30% split (by number of users). That means our train/test dataset will contain approximately 91846 / 39,363 users.
+Instacart did not provide us test order detail, therefore we shall use the train users for both trainng and testing. We achieve this by splitting the train users and its related orders and products into train dataset and train dataset, at 70%/30% split (by number of users). 
+That means our train/test dataset will contain approximately 91846 / 39,363 users.
 
 ```{r}
 # update this variable for changing split ratio
@@ -66,8 +64,7 @@ cat("Total Rows in Training Users: ", length(train.users),
 ##Training Data Construct
 The data frame used for training should contain the below columns and features:
 
-key
-
+##key
 This is unique pair of user_id and product_id from orders
 The keys should be constructed from all user_id-product_id pair that includes all prior and test/train rows
 `actual
@@ -110,8 +107,7 @@ head(train.construct,5)
 
 
 ##Testing Data Construct
-Similar approach to training data construct, here we frame the testing data for evaluate our model built with training data.
-
+Similar approach to training data construct, here we frame the testing data for evaluate our model built with training data
 
 ```{r}
 # list of products in the final order, this make up the label
@@ -197,7 +193,6 @@ optimize_cutoff = function (actual, probability) {
 Build The Model
 With intension to make this a baseline model, We simply predict the basket based on user last order.
 
-
 ```{r}
 m1.train.data = orders_products %>%
   filter(user_id %in% train.users) %>%
@@ -211,17 +206,12 @@ m1.train.data = orders_products %>%
 head(m1.train.data,5)
 ```
 
-
-
 ```{r}
 ##To know the current storage capacity
 memory.limit()
 ## To increase the storage capacity
 memory.limit(size=100000)
 ```
-
-
-
 
 ##Confusion Matrix
 ```{r}
@@ -239,7 +229,7 @@ cat("Accuracy:  ", m1.eval$accuracy,
     "\nFScore:    ", m1.eval$fscore)
 ``` 
 
-
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 ##Model 2 : Smarter Naive Prediction (Baseline)
