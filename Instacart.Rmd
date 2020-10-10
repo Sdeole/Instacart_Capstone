@@ -14,9 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ##Introduction: 
 
 Instacart is an American company that operates as a same-day grocery delivery service. Customers can select groceries through a web application and the order is reviewed and delivered by personal shoppers through various retailers. With the large customer base, the company collects data of the users’ transactions behaviour and purchasing history.Instacart published the anonymized data on customer orders collected over time. Dataset consists 3 million grocery orders for more than 200,000 Instacart Orders.
-
 There are three ways that Instacart generates revenue: delivery fees, membership fees, and mark-ups on in-store prices
-
 In this analysis report,Exploratory Data analysis and Machine Learning was performed in order to derive insights from customer data.
 
 
