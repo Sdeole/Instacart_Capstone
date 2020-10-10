@@ -29,7 +29,7 @@ Data source can be downloaded here: https://www.kaggle.com/c/instacart-market-ba
 
 ##R Markdown
 #R libraries used 
-Here is the list of libraries used for this Project
+Here is the list of libraries used for this Project  
 ```{r}
 #Here is the list of libraries used for this Project
 
