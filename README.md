@@ -90,5 +90,6 @@ CITATIONS
 2.	Data Dictionary: https://gist.github.com/jeremystan/c3b39d947d9b88b3ccff3147dbcf6c6b 
 3.	https://rstudio-pubs-static.s3.amazonaws.com/446413_6ac206ffa826466bb3a33be2f338c61f.html#analysis-recommendations 
 4. https://www.kaggle.com/philippsp/exploratory-analysis-instacart
+5. https://www.kaggle.com/fabienvs/instacart-xgboost-starter-lb-0-3791
 
 
