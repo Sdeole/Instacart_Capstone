@@ -24,7 +24,7 @@ RESEARCH GOAL AND OBJECTIVE:
 •	Secondary Objective: Before suggesting which users would reorder the item again, user interaction with the items will be explored by asking the following questions.
 What days customers usually order, i.e hours and days
 How many days it would take the users to reorder the product
-What are the best-selling products or the most reordered products?
+What are the best-selling products or the most reordered products? 
 When do people order?
 
 EXPLORATORY DATA ANALYSIS
